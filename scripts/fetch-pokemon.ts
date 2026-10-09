@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- raw PokéAPI JSON is untyped */
 /**
  * Downloads Pokémon data once from PokéAPI (static mirror on GitHub, no rate limit)
  * and writes compact source files to data/source/.

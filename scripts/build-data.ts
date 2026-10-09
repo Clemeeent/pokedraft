@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- raw PokéAPI JSON is untyped */
 /**
  * Offline step: data/source/*.json (raw PokéAPI extract) → data/pokemon.json + data/moves.json
  * (the compact files the game loads), choosing each Pokémon's 4 moves.
