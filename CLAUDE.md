@@ -42,8 +42,14 @@ everyone, reproducible server-side, one roster per player per day.
 ## Stack
 - Next.js (App Router) + TypeScript (strict) + Tailwind. Vitest for tests.
 - Phase 2+: Supabase (Postgres, Auth anonymous + linking, Realtime), Vercel hosting.
-- Pokémon data fetched once from PokéAPI by a script into static JSON in `data/`; game never
-  calls PokéAPI at runtime. Sprites downloaded at build time and self-hosted (no hotlinking).
+- Pokémon data fetched once from PokéAPI (GitHub mirror `PokeAPI/api-data`) by `scripts/fetch-pokemon.ts`
+  into `data/source/`, then `scripts/build-data.ts` picks movesets → `data/pokemon.json`, `data/moves.json`.
+  Game never calls PokéAPI at runtime. Pool: 1025 base species (no Mega / regional forms).
+- Sprites: Pokémon Showdown "gen5" style (smogon/sprites repo), downloaded by `scripts/fetch-sprites.ts` into
+  `public/sprites/` (gitignored, runs before dev/build), PokéAPI fallback. Self-hosted, no hotlinking.
+- Phase 2 auth: magic link only. Owner uses a Mac.
+- Next.js 16 has breaking changes: read `node_modules/next/dist/docs/` before using a Next API (see AGENTS.md).
+- Commands: `./start.sh` (install + test + dev), `npm test`, `npm run simulate`.
 - Anything that affects ranking (draw, rerolls, selection, battles) is validated server-side
   from phase 2 on.
 
