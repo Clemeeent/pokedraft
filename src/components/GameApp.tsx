@@ -78,6 +78,14 @@ export default function GameApp() {
     });
   }, [dayKey]);
   const onRerollRevealed = useCallback(() => setRevealingReroll(false), []);
+  const onBattlesWatched = useCallback(() => {
+    setSaved((s) => {
+      if (!s || s.battlesWatched) return s;
+      const next = { ...s, battlesWatched: true };
+      saveDay(dayKey, next);
+      return next;
+    });
+  }, [dayKey]);
 
   const begin = () => persist({ draft: startDraft(dayPool, dayKey, day, playerId), revealed: false });
 
@@ -150,7 +158,14 @@ export default function GameApp() {
           </div>
         )}
 
-        {draft?.locked && results && <Results me={results.me} ranking={results.ranking} />}
+        {draft?.locked && results && (
+          <Results
+            me={results.me}
+            ranking={results.ranking}
+            alreadyWatched={!!saved?.battlesWatched || instant}
+            onWatched={onBattlesWatched}
+          />
+        )}
       </main>
 
       <footer className={`pt-8 ${draft && !draft.locked ? "pb-32" : "pb-6"} text-center text-[10px] leading-relaxed text-white/40`}>
@@ -174,11 +189,11 @@ export default function GameApp() {
       </footer>
 
       {saved && !saved.revealed && (
-        <Reveal items={saved.draft.roster} onDone={onRosterRevealed} instant={instant} speed={1.4} title="TODAY'S ROSTER" />
+        <Reveal items={saved.draft.roster} onDone={onRosterRevealed} instant={instant} title="TODAY'S ROSTER" />
       )}
 
       {draft?.pending && revealingReroll && (
-        <Reveal items={draft.pending.options} onDone={onRerollRevealed} instant={instant} speed={1.2} title="REROLL" />
+        <Reveal items={draft.pending.options} onDone={onRerollRevealed} instant={instant} title="REROLL" />
       )}
       {draft?.pending && !revealingReroll && (
         <RerollPicker

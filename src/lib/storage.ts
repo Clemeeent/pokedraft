@@ -33,6 +33,8 @@ export interface SavedDay {
   draft: DraftState;
   /** The initial roster reveal animation was seen. */
   revealed: boolean;
+  /** The live battle sequence after lock was seen (or skipped). */
+  battlesWatched?: boolean;
 }
 
 export const loadDay = (dayKey: string) => read<SavedDay>(`day:${dayKey}`);

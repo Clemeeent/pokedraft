@@ -32,7 +32,8 @@ everyone, reproducible server-side, one roster per player per day.
   deterministically (best STAB + coverage), energy instead of PP (energy per turn, cost ∝ power).
 - 3v3, speed order, KO → next, simple deterministic AI (best available move; switch if matchup
   very bad). Light RNG (accuracy, crits, damage variance) from the battle seed.
-- Outputs a full event log for replays. Same seed = same battle.
+- Outputs a full event log. Same seed = same battle. UI shows battles as inline "live score" rows (owner
+  decision: no full-screen visual replay).
 - **Pure TypeScript module in `src/engine/`: no imports from Next.js, React, Supabase, or the
   DOM.** Runs in browser (phase 1) and on server (phase 2) unchanged.
 - All balancing values live in `src/config/` — never hard-code them.

@@ -7,154 +7,123 @@ import { PokeBall } from "./PokeBall";
 import { Sprite } from "./Sprite";
 import { TypeBadge } from "./TypeBadge";
 
-type Phase = "drop" | "shake" | "pause" | "glint" | "flash" | "shown";
-
 const SHAKES = { poke: 1, great: 2, ultra: 3, master: 3 } as const;
+const TIMING = { drop: 300, shake: 380, shakePause: 140, openEach: 220, hold: 700 };
+
+type Stage = { kind: "drop" } | { kind: "shake"; round: number } | { kind: "open"; opened: number } | { kind: "done" };
 
 /**
- * Ball reveal: the ball drops, shakes 1–3 times (more = rarer), opens in a white flash,
- * and the Pokémon pops out. Tap to skip ahead. `speed` > 1 makes it faster (roster chain).
+ * All balls appear at once and shake together: rarer balls (better color) keep shaking for
+ * more rounds. Then they burst open one after another. Tap to open everything immediately.
  */
-export function Reveal({
-  items,
-  onDone,
-  instant,
-  speed = 1,
-  title,
-}: {
-  items: RosterSlot[];
-  onDone: () => void;
-  instant: boolean;
-  speed?: number;
-  title: string;
-}) {
-  const [index, setIndex] = useState(0);
-  const [phase, setPhase] = useState<Phase>("drop");
-  const [shakesDone, setShakesDone] = useState(0);
-
-  const current = items[index];
-  const species = current ? dex.speciesById.get(current.speciesId)! : null;
-  const tier = species ? ballTier(species) : "poke";
+export function Reveal({ items, onDone, instant, title }: { items: RosterSlot[]; onDone: () => void; instant: boolean; title: string }) {
+  const [stage, setStage] = useState<Stage>({ kind: "drop" });
+  const tiers = items.map((it) => ballTier(dex.speciesById.get(it.speciesId)!));
+  const maxShakes = Math.max(...tiers.map((t) => SHAKES[t]));
 
   useEffect(() => {
-    if (instant || index >= items.length) {
-      const t = setTimeout(onDone, instant ? 0 : 150);
+    if (instant) {
+      const t = setTimeout(onDone, 0);
       return () => clearTimeout(t);
     }
-    const ms = (n: number) => n / speed;
-    let next: () => void;
     let delay: number;
-    switch (phase) {
+    let next: () => void;
+    switch (stage.kind) {
       case "drop":
-        delay = ms(300);
-        next = () => setPhase("shake");
+        delay = TIMING.drop;
+        next = () => setStage({ kind: "shake", round: 1 });
         break;
       case "shake":
-        delay = ms(420);
-        next = () => {
-          setShakesDone((n) => n + 1);
-          setPhase("pause");
-        };
+        delay = TIMING.shake + TIMING.shakePause;
+        next = () => setStage(stage.round < maxShakes ? { kind: "shake", round: stage.round + 1 } : { kind: "open", opened: 1 });
         break;
-      case "pause":
-        delay = ms(220);
-        next = () => setPhase(shakesDone < SHAKES[tier] ? "shake" : current.shiny ? "glint" : "flash");
+      case "open":
+        delay = stage.opened < items.length ? TIMING.openEach : TIMING.hold;
+        next = () => setStage(stage.opened < items.length ? { kind: "open", opened: stage.opened + 1 } : { kind: "done" });
         break;
-      case "glint":
-        delay = ms(900);
-        next = () => setPhase("flash");
-        break;
-      case "flash":
-        delay = ms(160);
-        next = () => setPhase("shown");
-        break;
-      case "shown":
-        delay = ms(index === items.length - 1 ? 900 : 650);
-        next = () => {
-          setIndex((i) => i + 1);
-          setShakesDone(0);
-          setPhase("drop");
-        };
+      case "done":
+        delay = 0;
+        next = onDone;
         break;
     }
     const t = setTimeout(next, delay);
     return () => clearTimeout(t);
-  }, [phase, index, shakesDone, instant, items.length, onDone, speed, tier, current]);
+  }, [stage, instant, onDone, maxShakes, items.length]);
+
+  if (instant) return null;
 
   const skip = () => {
-    if (phase !== "shown") setPhase("shown");
-    else {
-      setIndex((i) => i + 1);
-      setShakesDone(0);
-      setPhase("drop");
-    }
+    if (stage.kind === "open" && stage.opened >= items.length) onDone();
+    else setStage({ kind: "open", opened: items.length });
   };
-
-  if (instant || !current || !species) return null;
-  const shown = phase === "shown";
 
   return (
     <button
       type="button"
       onClick={skip}
-      className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-bg-deep text-center"
-      aria-label="Tap to skip"
+      className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-bg-deep px-4 text-center"
+      aria-label="Tap to open all"
     >
-      <p className="font-pixel absolute top-8 text-[10px] text-white/70">{title}</p>
-      <div className="relative flex h-52 w-52 items-end justify-center">
-        {!shown && (
-          <div
-            key={`${index}-${phase}-${shakesDone}`}
-            className={
-              phase === "drop" ? "anim-ball-drop" : phase === "shake" ? "anim-ball-shake" : phase === "glint" ? "anim-ball-glint" : ""
-            }
-          >
-            <PokeBall tier={tier} size={80} />
-          </div>
-        )}
-        {shown && (
-          <div key={`mon-${index}`} className="anim-pop-in relative">
-            <Sprite speciesId={species.id} shiny={current.shiny} scale={2} alt={species.name} />
-            {current.shiny && <Sparkles />}
-          </div>
-        )}
-        {phase === "flash" && <div className="anim-flash pointer-events-none fixed inset-0 bg-white" />}
+      <p className="font-pixel mb-8 text-[10px] text-white/70">{title}</p>
+      <div className="grid w-full max-w-sm grid-cols-3 gap-x-2 gap-y-5">
+        {items.map((item, i) => {
+          const species = dex.speciesById.get(item.speciesId)!;
+          const tier = tiers[i];
+          const opened = stage.kind === "open" && i < stage.opened;
+          const justOpened = stage.kind === "open" && i === stage.opened - 1;
+          const shaking = stage.kind === "shake" && stage.round <= SHAKES[tier];
+          return (
+            <div key={i} className="relative flex h-40 flex-col items-center justify-end">
+              {!opened ? (
+                <div
+                  key={stage.kind === "shake" ? `shake-${stage.round}` : stage.kind}
+                  className={`mb-10 ${stage.kind === "drop" ? "anim-ball-drop" : shaking ? "anim-ball-shake" : ""} ${
+                    item.shiny && stage.kind === "shake" ? "anim-ball-glint" : ""
+                  }`}
+                  style={stage.kind === "drop" ? { animationDelay: `${i * 30}ms` } : undefined}
+                >
+                  <PokeBall tier={tier} size={56} />
+                </div>
+              ) : (
+                <>
+                  <div className="anim-pop-in relative">
+                    <Sprite speciesId={species.id} shiny={item.shiny} scale={1} alt={species.name} />
+                    {item.shiny && <Sparkles />}
+                  </div>
+                  <p className="font-pixel mt-1 w-full truncate text-[8px]">
+                    {item.shiny && <span className="text-accent">✨</span>}
+                    {species.name}
+                  </p>
+                  <div className="mt-1 flex flex-wrap justify-center gap-0.5">
+                    {species.types.map((t) => (
+                      <TypeBadge key={t} type={t} small />
+                    ))}
+                  </div>
+                </>
+              )}
+              {justOpened && <div className="anim-flash pointer-events-none absolute bottom-6 left-1/2 h-24 w-24 -translate-x-1/2 rounded-full bg-white" />}
+            </div>
+          );
+        })}
       </div>
-      <div className={`mt-4 flex h-16 flex-col items-center gap-2 ${shown ? "anim-fade-up" : "opacity-0"}`}>
-        <p className="font-pixel text-sm">
-          {current.shiny && <span className="text-accent">✨ </span>}
-          {species.name}
-        </p>
-        <div className="flex gap-1">
-          {species.types.map((t) => (
-            <TypeBadge key={t} type={t} />
-          ))}
-        </div>
-      </div>
-      <div className="absolute bottom-10 flex gap-2">
-        {items.map((it, i) => (
-          <span key={i} className={`h-2 w-2 rounded-full ${i < index || (i === index && shown) ? "bg-accent" : "bg-white/25"}`} />
-        ))}
-      </div>
-      <p className="absolute bottom-4 text-[11px] text-white/40">Tap to speed up</p>
+      <p className="absolute bottom-6 text-[11px] text-white/40">Tap to open all</p>
     </button>
   );
 }
 
 function Sparkles() {
   const spots = [
-    [8, 10],
-    [80, 18],
-    [20, 70],
-    [88, 64],
-    [50, 0],
+    [5, 10],
+    [80, 15],
+    [15, 70],
+    [85, 65],
   ];
   return (
     <>
       {spots.map(([x, y], i) => (
         <span
           key={i}
-          className="anim-sparkle pointer-events-none absolute text-lg text-accent"
+          className="anim-sparkle pointer-events-none absolute text-sm text-accent"
           style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${i * 160}ms` }}
         >
           ✦
